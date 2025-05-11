@@ -1,32 +1,30 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
-public class CameraController : MonoBehaviour
+public class FollowCamera : MonoBehaviour
 {
-    [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private InputActionReference moveAction;
-    [SerializeField] private InputActionReference zoomAction;
+    public Transform target;  // Персонаж
+    public Vector3 offset = new Vector3(-5, 10, -20);  // Смещение камеры
+    public float smoothSpeed = 0.5f;  // Плавность слежения
 
-    void OnEnable()
+    void LateUpdate()
     {
-        moveAction.action.Enable();
-        zoomAction.action.Enable();
-    }
+        if (target == null)
+        {
+            Debug.LogError("Target not assigned!");
+            return;
+        }
 
-    void OnDisable()
-    {
-        moveAction.action.Disable();
-        zoomAction.action.Disable();
-    }
+        // Вычисляем желаемую позицию
+        Vector3 desiredPosition = target.position + offset;
+        
+        // Плавное перемещение
+        transform.position = Vector3.Lerp(
+            transform.position, 
+            desiredPosition, 
+            smoothSpeed * Time.deltaTime * 10  // Ускорение для компенсации Lerp
+        );
 
-    void Update()
-    {
-        // Чтение ввода
-        Vector2 moveInput = moveAction.action.ReadValue<Vector2>();
-        float zoomInput = zoomAction.action.ReadValue<float>();
-
-        // Движение и зум
-        transform.Translate(new Vector3(moveInput.x, 0, moveInput.y) * moveSpeed * Time.deltaTime);
-        Camera.main.orthographicSize -= zoomInput * 0.1f;
+        // Фиксированный изометрический угол (45°)
+        transform.rotation = Quaternion.Euler(30, 30, 0);
     }
 }
