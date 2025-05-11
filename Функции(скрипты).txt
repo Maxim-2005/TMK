@@ -1,0 +1,7 @@
+Движение Move
+Подбор предметов TakeItem
+Инвентарь Inventory
+Бег Run
+Строительство Build
+Сброс предметов ThrowItem
+Кнопка взаимодействия(с строением, npc) Interaction
