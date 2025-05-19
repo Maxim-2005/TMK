@@ -14,8 +14,10 @@ GameObject:
   - component: {fileID: 1309195720386441572}
   - component: {fileID: 3608141434378175699}
   - component: {fileID: 4904077001211577016}
+  - component: {fileID: 4597811885534433706}
+  - component: {fileID: 6657041448394447257}
   m_Layer: 0
-  m_Name: Capsule
+  m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -30,11 +32,12 @@ Transform:
   m_GameObject: {fileID: 1268730655696720336}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.01, z: -15}
+  m_LocalPosition: {x: 0, y: 1, z: -15}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8404270690314051396}
+  - {fileID: 6458179686248455008}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &2933187697296355196
@@ -125,7 +128,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed62fafdb09a0654284622126a2c1f2b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
+  sprintKey: 304
+  walkSpeed: 3
+  sprintSpeed: 7
   rotationSpeed: 10
 --- !u!143 &4904077001211577016
 CharacterController:
@@ -152,6 +157,32 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &4597811885534433706
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1268730655696720336}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3e5390d7ca6f5c046bfabdc094105047, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Take: 0
+--- !u!114 &6657041448394447257
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1268730655696720336}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: efd6a51f06eb1cb41a8cc7c6f695da6b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gravity: -20
 --- !u!1 &2294613292273699285
 GameObject:
   m_ObjectHideFlags: 0
@@ -260,3 +291,34 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!1 &9091247127927657136
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6458179686248455008}
+  m_Layer: 0
+  m_Name: itemGrab
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6458179686248455008
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9091247127927657136}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.533, y: 0.361, z: 0.894}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3270137003594430512}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
