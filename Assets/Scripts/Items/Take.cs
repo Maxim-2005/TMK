@@ -4,6 +4,8 @@ public class Take : MonoBehaviour
 {
     float distance = 100;
     public Transform pos;
+    public Transform lookDirection;
+    
     private Rigidbody rb;
     private MeshCollider ms;
     private Fpc_param fpc_;
@@ -12,6 +14,7 @@ public class Take : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         fpc_ = GameObject.Find("Player").GetComponent<Fpc_param>();
+        lookDirection = GameObject.Find("look(temp)").transform; // Или "temp", если объект так называется
     }
 
     // По нажатию ЛКМ поднимает перемещает предмет в указанную точку(руку)
@@ -26,8 +29,7 @@ public class Take : MonoBehaviour
         }
     }
 
-
-    void FixedUpdate()
+    void Update()
     {
         // Бросок предмета на G и следования предмета за персонажем
         if (rb.isKinematic == true)
@@ -38,7 +40,7 @@ public class Take : MonoBehaviour
                 fpc_.Take = false;
                 rb.useGravity = true;
                 rb.isKinematic = false;
-                rb.AddForce(Camera.main.transform.forward * 500);
+                rb.AddForce(lookDirection.forward * 500);
             }
         }
     }
