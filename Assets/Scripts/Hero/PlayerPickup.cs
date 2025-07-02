@@ -98,7 +98,7 @@ public class PlayerPickup : MonoBehaviour
     void TryPickupNearestItem()
     {
         GameObject[] items = GameObject.FindGameObjectsWithTag(targetTag)
-            .Where(item => 
+            .Where(item =>
                 Vector3.Distance(transform.position, item.transform.position) <= pickupRange)
             .ToArray();
 
@@ -110,18 +110,35 @@ public class PlayerPickup : MonoBehaviour
 
         heldObject = nearestItem;
         heldObjectRb = nearestItem.GetComponent<Rigidbody>();
-        heldObjectRb.isKinematic = true;
+        heldObjectRb.isKinematic = true; 
+        
+        // Отключаем коллайдер
+        Collider collider = nearestItem.GetComponent<Collider>();
+        if (collider != null)
+            collider.enabled = false;
     }
 
     void DropItem()
     {
         heldObjectRb.isKinematic = false;
+
+        // Включаем коллайдер обратно
+        Collider collider = heldObject.GetComponent<Collider>();
+        if (collider != null)
+            collider.enabled = true;
+
         heldObject = null;
     }
 
     void ThrowItem()
     {
         heldObjectRb.isKinematic = false;
+
+        // Включаем коллайдер перед броском
+        Collider collider = heldObject.GetComponent<Collider>();
+        if (collider != null)
+            collider.enabled = true;
+
         heldObjectRb.AddForce(transform.forward * throwForce);
         heldObject = null;
     }
