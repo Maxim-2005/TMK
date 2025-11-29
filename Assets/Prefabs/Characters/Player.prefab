@@ -341,9 +341,10 @@ GameObject:
   - component: {fileID: 263796721798133949}
   - component: {fileID: 8330718533898247656}
   - component: {fileID: 1308933105974604817}
-  - component: {fileID: 438502951653349099}
-  - component: {fileID: 4230469470414680874}
   - component: {fileID: 7534449677577488548}
+  - component: {fileID: 438502951653349099}
+  - component: {fileID: 5895319629699470260}
+  - component: {fileID: 4585400398832478852}
   m_Layer: 0
   m_Name: model
   m_TagString: Player
@@ -472,35 +473,6 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &438502951653349099
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9026689888583950913}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ed62fafdb09a0654284622126a2c1f2b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sprintKey: 304
-  walkSpeed: 3
-  sprintSpeed: 7
-  rotationSpeed: 10
---- !u!114 &4230469470414680874
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9026689888583950913}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: efd6a51f06eb1cb41a8cc7c6f695da6b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  gravity: -20
 --- !u!114 &7534449677577488548
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -517,5 +489,47 @@ MonoBehaviour:
   holdPosition: {fileID: 6630071762226104623}
   throwForce: 500
   pickupRange: 3
+--- !u!114 &438502951653349099
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9026689888583950913}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed62fafdb09a0654284622126a2c1f2b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sprintKey: 304
+  walkSpeed: 3
+  sprintSpeed: 7
+  rotationSpeed: 10
+  gravity: -30
+  groundVelocity: -2
+--- !u!114 &5895319629699470260
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9026689888583950913}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ef96bf3f5febf145b72c3dc0d8701ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerToolController
+--- !u!114 &4585400398832478852
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9026689888583950913}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71a689a3042ed0044a2b8f2b5b4a4ca2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemHighlighter
   highlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  highlightIntensity: 1
+  highlightIntensity: 0.5

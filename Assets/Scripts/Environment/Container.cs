@@ -1,46 +1,67 @@
 using UnityEngine;
+using System.Linq;
 using System.Collections.Generic;
-using System.Linq; 
-using TMPro; // Обязательно добавьте этот using для работы с текстом UI
+using TMPro;
 
 public class Container : MonoBehaviour
 {
-    // Точка, куда будут спавниться или перемещаться предметы при взятии из ящика
-    [Tooltip("Точка в ящике, куда перемещаются предметы при хранении.")]
+    // Описание требуемого ресурса для рецепта.
+    [System.Serializable]
+    public class ResourceRequirement
+    {
+        [Tooltip("Название ресурса (должно совпадать с ItemTypeName в ItemPickup.cs)")]
+        public string resourceName;
+        [Tooltip("Требуемое количество для завершения.")]
+        public int requiredAmount;
+        [Tooltip("Префаб подбираемого ресурса (тот, что имеет компонент ItemPickup).")]
+        public GameObject visualPrefab;
+        
+        public Vector3 defaultEulerRotation = Vector3.zero;
+    }
+
+    [Tooltip("Точка в ящике, куда перемещаются предметы при хранении. Не используется, но оставлена для удобства.")]
     public Transform storageSpawnPoint; 
     
-    [Header("Настройки Счетчик/Завершение")]
-    [Tooltip("Необходимое количество предметов для завершения.")]
-    public int requiredItems = 5; 
-    [Tooltip("Компонент TextMeshProUGUI для отображения счетчика (0/5).")]
+    [Header("Настройки Рецепта/Завершения")]
+    [Tooltip("Список требуемых ресурсов и их количество.")]
+    public List<ResourceRequirement> requirements = new List<ResourceRequirement>
+    {
+        new ResourceRequirement { resourceName = "Stone", requiredAmount = 5 },
+    };
+    
+    [Tooltip("Компонент TextMeshProUGUI для отображения счетчика.")]
     public TextMeshProUGUI counterText;
-    [Tooltip("Объект, на который заменится контейнер после завершения (например, открытый ящик).")]
+    [Tooltip("Объект, на который заменится контейнер после завершения.")]
     public GameObject replacementObjectPrefab; 
 
-    [Header("Настройки подсветки")]
-    public Color highlightColor = Color.cyan; // Цвет, которым будет подсвечиваться контейнер
-    public float highlightIntensity = 1.5f; // Яркость свечения
+    // Хранилище: Dictionary<ТипРесурса, Количество>
+    private Dictionary<string, int> storedResources = new Dictionary<string, int>();
 
-    // Хранилище: список предметов, которые находятся внутри ящика
-    private List<GameObject> storedItems = new List<GameObject>();
-
-    // Используем ссылку на компонент PlayerPickup
     private PlayerPickup playerController; 
+    private ObjectHighlighter highlighter;
     
-    // Флаг, который показывает, находится ли игрок сейчас в области триггера
     private bool playerIsInsideTrigger = false; 
-    private bool isCompleted = false; // Новый флаг для состояния завершения
-
-    // Словарь для хранения оригинального материала
-    private Dictionary<GameObject, Material> originalMaterials = new Dictionary<GameObject, Material>();
+    private bool isCompleted = false;
 
     void Start()
     {
+        // Ищем контроллер игрока
         playerController = FindFirstObjectByType<PlayerPickup>();
+        
+        if (playerController != null)
+        {
+            // Берем компонент подсветки с игрока
+            highlighter = playerController.GetComponent<ObjectHighlighter>();
+        }
 
         if (playerController == null)
         {
-            Debug.LogError("КРИТИЧЕСКАЯ ОШИБКА КОНТЕЙНЕРА: Компонент PlayerPickup не найден в сцене!");
+            Debug.LogError("CRITICAL ERROR: PlayerPickup component not found in scene!");
+        }
+        
+        if (highlighter == null)
+        {
+            Debug.LogWarning("ObjectHighlighter component not found on Player. Highlighting will not work.");
         }
         
         if (storageSpawnPoint == null)
@@ -49,244 +70,228 @@ public class Container : MonoBehaviour
 
             if (storageSpawnPoint == null)
             {
-                Debug.LogError("КРИТИЧЕСКАЯ ОШИБКА КОНТЕЙНЕРА: Не задана точка storageSpawnPoint! Назначьте Transform в инспекторе или создайте дочерний объект 'SpawnPoint'.");
+                // Создаем точку по умолчанию
+                GameObject defaultSpawn = new GameObject("SpawnPoint");
+                defaultSpawn.transform.SetParent(transform);
+                defaultSpawn.transform.localPosition = Vector3.up * 0.5f;
+                storageSpawnPoint = defaultSpawn.transform;
             }
         }
         
-        // Проверяем наличие коллайдера-триггера
-        if (GetComponent<Collider>() == null || !GetComponent<Collider>().isTrigger)
+        // Инициализируем хранилище
+        foreach (var req in requirements)
         {
-            Debug.LogWarning("ПРЕДУПРЕЖДЕНИЕ: На объекте-контейнере нет коллайдера с установленной галочкой 'Is Trigger'. Триггерная система не будет работать!");
+            storedResources[req.resourceName] = 0;
         }
         
-        // Инициализируем отображение счетчика при старте
         UpdateCounterDisplay();
     }
 
     void Update()
     {
-        // Прерываем работу, если контейнер уже завершен
         if (isCompleted)
         {
-            // Сбрасываем подсветку, если вдруг она осталась
-            ResetHighlight(this.gameObject);
+            highlighter?.ResetHighlight(gameObject);
             return;
         }
 
-        // Прерываем работу, если нет критических ссылок или игрок не в зоне
         if (playerController == null || storageSpawnPoint == null || !playerIsInsideTrigger)
         {
              return;
         }
 
-        // 1. Проверяем состояние предметов
         bool playerHasItem = playerController.HeldObject != null;
-        bool containerHasItem = storedItems.Count > 0;
+        bool containerHasAnyItem = storedResources.Values.Any(amount => amount > 0);
         
-        // Подсветка активна, если игрок в зоне И (несет предмет ИЛИ ящик не пуст)
-        if (playerHasItem || containerHasItem)
+        // Логика подсветки
+        if (highlighter != null)
         {
-            HighlightObject(this.gameObject);
-        }
-        else
-        {
-            ResetHighlight(this.gameObject);
+            // Подсвечиваем контейнер, если игрок в зоне и может взаимодействовать
+            if (playerIsInsideTrigger && (playerHasItem || containerHasAnyItem))
+            {
+                highlighter.HighlightObject(gameObject);
+            }
+            else
+            {
+                highlighter.ResetHighlight(gameObject);
+            }
         }
 
-        // *** ЛОГИКА ИЗВЛЕЧЕНИЯ (Нажатие клавиши E) ***
-
+        // --- ЛОГИКА ИЗЪЯТИЯ (Кнопка E) ---
         // Берем предмет из ящика: Нажимаем E, если руки пусты и ящик не пуст.
-        // НОВАЯ ПРОВЕРКА: Игрок НЕ должен был только что бросить предмет (HasRecentlyDropped == false).
-        if (Input.GetKeyDown(KeyCode.E) && !playerHasItem && containerHasItem && !playerController.HasRecentlyDropped)
+        if (Input.GetKeyDown(KeyCode.E) && !playerHasItem && containerHasAnyItem && !playerController.HasRecentlyDropped)
         {
-            WithdrawItem(); // Берем предмет
+            WithdrawResource();
         }
     }
 
-    // *** МЕТОДЫ ТРИГГЕРОВ ***
-
     private void OnTriggerEnter(Collider other)
     {
-        // Если контейнер завершен, игнорируем любые входы
         if (isCompleted) return;
 
-        // 1. Проверяем, вошел ли в триггер игрок (для подсветки)
         if (other.GetComponent<PlayerPickup>() == playerController)
         {
             playerIsInsideTrigger = true;
         }
         
-        // 2. Проверяем, попал ли в триггер СБРОШЕННЫЙ ПРЕДМЕТ (для кладения)
-        if (other.CompareTag("Item"))
+        ItemPickup itemComponent = other.GetComponent<ItemPickup>();
+        
+        if (other.CompareTag("Item") && itemComponent != null)
         {
-            DepositByTrigger(other.gameObject);
+            // Не кладем, если предмет в руке игрока (он должен сбросить его сам)
+            if (playerController != null && other.gameObject == playerController.HeldObject) return;
+
+            DepositByTrigger(other.gameObject, itemComponent.ItemTypeName);
         }
     }
 
     private void OnTriggerExit(Collider other)
     {
-        // Проверяем, вышел ли из триггера игрок
         if (other.GetComponent<PlayerPickup>() == playerController)
         {
             playerIsInsideTrigger = false;
-            ResetHighlight(this.gameObject); // Сбрасываем подсветку
-        }
-    }
-    
-    /// <summary>
-    /// Кладет предмет, который попал в триггер, в контейнер, и проверяет условие завершения.
-    /// </summary>
-    void DepositByTrigger(GameObject itemToStore)
-    {
-        if (itemToStore == null || isCompleted) return;
-        
-        // Проверка: предмет уже внутри? (Нужна для предотвращения многократного срабатывания)
-        if (storedItems.Contains(itemToStore)) return;
-
-        // Отключаем физику и коллайдер у захваченного предмета
-        Rigidbody rb = itemToStore.GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.isKinematic = true; 
-        }
-        
-        Collider collider = itemToStore.GetComponent<Collider>();
-        if (collider != null)
-            collider.enabled = false;
-        
-        // Размещаем предмет в точке хранения
-        itemToStore.transform.SetParent(storageSpawnPoint);
-        itemToStore.transform.localPosition = Vector3.zero;
-        itemToStore.transform.localRotation = Quaternion.identity; 
-        
-        storedItems.Add(itemToStore);
-        Debug.Log($"ПРЕДМЕТ ПОЛОЖЕН АВТОМАТИЧЕСКИ: '{itemToStore.name}' попал в триггер. Всего предметов: {storedItems.Count}");
-        
-        // Обновляем счетчик
-        UpdateCounterDisplay();
-
-        // *** ПРОВЕРКА УСЛОВИЯ ЗАВЕРШЕНИЯ ***
-        if (storedItems.Count >= requiredItems)
-        {
-            CompleteContainer();
-        }
-    }
-
-    /// <summary>
-    /// Извлекает последний предмет из контейнера и передает его игроку.
-    /// </summary>
-    void WithdrawItem()
-    {
-        if (storedItems.Count == 0 || isCompleted) return; // Нельзя брать, если завершено
-        
-        int lastIndex = storedItems.Count - 1;
-        GameObject itemToGive = storedItems[lastIndex];
-        
-        // Передаем предмет игроку
-        if (playerController.TryGiveItem(itemToGive))
-        {
-            // Если игрок смог взять предмет (т.е. руки были пусты), удаляем из списка
-            storedItems.RemoveAt(lastIndex); 
-            Debug.Log($"ПРЕДМЕТ ВЗЯТ: '{itemToGive.name}' взят из ящика. Осталось предметов: {storedItems.Count}");
             
-            // Обновляем счетчик
-            UpdateCounterDisplay();
+            // Сбрасываем подсветку контейнера при выходе
+            highlighter?.ResetHighlight(gameObject);
         }
-        // else: Если руки заняты, предмет остается.
     }
     
-    /// <summary>
-    /// Обновляет текстовое отображение счетчика.
-    /// </summary>
+    // Кладет предмет в контейнер, когда он попадает в триггер.
+    void DepositByTrigger(GameObject itemToStore, string resourceTypeName)
+    {
+        string type = resourceTypeName;
+        ResourceRequirement requirement = requirements.FirstOrDefault(req => req.resourceName == type);
+
+        if (requirement == null)
+        {
+            Debug.LogWarning($"CONTAINER: Ресурс '{type}' не требуется.");
+            return;
+        }
+        
+        if (!storedResources.ContainsKey(type))
+        {
+             storedResources[type] = 0;
+        }
+        
+        // Проверка лимита
+        if (storedResources[type] >= requirement.requiredAmount)
+        {
+             Debug.Log($"CONTAINER: Ресурс '{type}' уже полон.");
+             return;
+        }
+        
+        storedResources[type]++;
+        Destroy(itemToStore); 
+        
+        Debug.Log($"ПРЕДМЕТ ПОМЕЩЕН АВТОМАТИЧЕСКИ: '{type}'. Текущее количество: {storedResources[type]}");
+        
+        UpdateCounterDisplay();
+        CheckCompletion();
+    }
+    
+    // Извлекает один предмет из контейнера и дает его игроку.
+    void WithdrawResource()
+    {
+        // 1. Ищем ресурс, который можно изъять
+        ResourceRequirement resourceToWithdraw = requirements.FirstOrDefault(req => 
+            storedResources.ContainsKey(req.resourceName) && storedResources[req.resourceName] > 0
+        );
+
+        if (resourceToWithdraw == null)
+        {
+            Debug.Log("CONTAINER: Нечего изымать.");
+            return;
+        }
+        
+        string type = resourceToWithdraw.resourceName;
+        
+        // 2. Уменьшаем счетчик
+        storedResources[type]--;
+
+        // 3. Создаем физический предмет
+        Vector3 spawnPosition = storageSpawnPoint.position;
+        GameObject spawnedItem = Instantiate(resourceToWithdraw.visualPrefab, spawnPosition, Quaternion.identity);
+
+        // 4. Пытаемся дать предмет игроку
+        if (playerController.TryGiveItem(spawnedItem))
+        {
+            Debug.Log($"ПРЕДМЕТ ИЗЪЯТ: '{type}'. Передан игроку.");
+        }
+        else
+        {
+             // Если руки игрока неожиданно полны
+             Debug.LogError("CONTAINER: Не удалось передать предмет игроку (Руки неожиданно полны).");
+             
+             // Откат
+             storedResources[type]++; 
+             Destroy(spawnedItem);
+        }
+        
+        // 5. Обновляем счетчик
+        UpdateCounterDisplay();
+    }
+    
+    // Обновляет отображение TextMeshProUGUI.
     void UpdateCounterDisplay()
     {
         if (counterText != null)
         {
-            counterText.text = $"{storedItems.Count}/{requiredItems}";
+            string display = "";
+            foreach (var req in requirements)
+            {
+                int currentAmount = storedResources.ContainsKey(req.resourceName) ? storedResources[req.resourceName] : 0;
+                display += $"{req.resourceName}: {currentAmount}/{req.requiredAmount}\n";
+            }
+            counterText.text = display.TrimEnd('\n'); 
         }
         else
         {
-            // Предупреждение, чтобы напомнить пользователю, если он не назначил компонент
-            Debug.LogWarning("Счетчик TextMeshProUGUI не назначен в Инспекторе! Пожалуйста, добавьте UI Text (TMP) и перетащите его в поле Counter Text.");
+            Debug.LogWarning("Счетчик TextMeshProUGUI не назначен! Обновление дисплея не удалось.");
+        }
+    }
+
+    // Проверяет, выполнены ли все требования рецепта.
+    void CheckCompletion()
+    {
+        bool allRequirementsMet = true;
+        foreach (var req in requirements)
+        {
+            int current = storedResources.ContainsKey(req.resourceName) ? storedResources[req.resourceName] : 0;
+            
+            if (current < req.requiredAmount)
+            {
+                allRequirementsMet = false;
+                break;
+            }
+        }
+
+        if (allRequirementsMet)
+        {
+            CompleteContainer();
         }
     }
     
-    /// <summary>
-    /// Завершает работу контейнера: удаляет предметы и заменяет объект.
-    /// </summary>
+    // Завершает контейнер: удаляет подсветку и заменяет объект.
     void CompleteContainer()
     {
         isCompleted = true;
-        Debug.Log("КОНТЕЙНЕР ЗАПОЛНЕН! Выполняю завершение...");
+        Debug.Log("КОНТЕЙНЕР ЗАПОЛНЕН! Выполнение завершения...");
         
-        // Сбрасываем подсветку ящика перед удалением
-        ResetHighlight(this.gameObject);
-
-        // 1. Удаляем все хранящиеся предметы
-        foreach (GameObject item in storedItems)
-        {
-            // Удаляем сам игровой объект предмета
-            Destroy(item);
-        }
-        storedItems.Clear(); // Очищаем список после уничтожения
+        highlighter?.ResetHighlight(gameObject);
 
         // Обновляем счетчик в последний раз
         if (counterText != null)
         {
-             // Здесь можно написать что-то вроде "ГОТОВО"
-             counterText.text = "ЗАВЕРШЕНО";
+             counterText.text = "ЗАВЕРШЕНО!";
         }
         
-        // 2. Заменяем текущий объект на другой
+        // Заменяем текущий объект
         if (replacementObjectPrefab != null)
         {
-            // Создаем новый объект на месте старого контейнера
             Instantiate(replacementObjectPrefab, transform.position, transform.rotation);
         }
-        else
-        {
-            Debug.LogWarning("Replacement Object Prefab не назначен. Замена не выполнена. Контейнер будет просто удален.");
-        }
         
-        // 3. Удаляем текущий объект контейнера
+        // Уничтожаем текущий объект контейнера
         Destroy(gameObject);
-    }
-
-    // Методы подсветки
-    // (Остаются без изменений)
-    
-    /// <summary>
-    /// Подсвечивает указанный объект, используя эмиссию материала.
-    /// </summary>
-    void HighlightObject(GameObject item)
-    {
-        Renderer renderer = item.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            if (!originalMaterials.ContainsKey(item))
-            {
-                // Клонируем материал, чтобы не менять оригинальный ассет
-                originalMaterials[item] = renderer.material;
-            }
-
-            // Применяем подсвечивающий материал
-            Material highlightMat = new Material(originalMaterials[item]);
-            highlightMat.EnableKeyword("_EMISSION");
-            highlightMat.SetColor("_EmissionColor", highlightColor * highlightIntensity);
-            renderer.material = highlightMat;
-        }
-    }
-
-    /// <summary>
-    /// Сбрасывает подсветку объекта, возвращая ему оригинальный материал.
-    /// </summary>
-    void ResetHighlight(GameObject item)
-    {
-        Renderer renderer = item.GetComponent<Renderer>();
-        if (renderer != null && originalMaterials.ContainsKey(item))
-        {
-            renderer.material = originalMaterials[item];
-            originalMaterials.Remove(item);
-        }
     }
 }
