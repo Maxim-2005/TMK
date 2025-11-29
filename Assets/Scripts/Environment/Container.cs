@@ -1,56 +1,75 @@
 using UnityEngine;
 using System.Linq;
 using System.Collections.Generic;
-using TMPro;
+using TMPro; 
+using Game.Items;
 
+/// <summary>
+/// Контейнер, который принимает брошенные предметы и хранит их. 
+/// Он может работать как сборочная станция (по достижении рецепта) или 
+/// как разрушаемый ящик, выбрасывающий все накопленные ресурсы.
+/// </summary>
 public class Container : MonoBehaviour
 {
-    // Описание требуемого ресурса для рецепта.
     [System.Serializable]
-    public class ResourceRequirement
+    public class AcceptedResource
     {
-        [Tooltip("Название ресурса (должно совпадать с ItemTypeName в ItemPickup.cs)")]
-        public string resourceName;
-        [Tooltip("Требуемое количество для завершения.")]
-        public int requiredAmount;
-        [Tooltip("Префаб подбираемого ресурса (тот, что имеет компонент ItemPickup).")]
+        [Tooltip("Точное имя типа ресурса из ItemPickup.ItemTypeName (например, 'Stone').")] 
+        public string itemTypeName;
+        [Tooltip("Количество этого ресурса, требуемое для завершения рецепта (0, если рецепта нет).")]
+        public int requiredAmount = 0; 
+        [Tooltip("Префаб, который нужно использовать для создания визуального объекта при выбросе.")]
         public GameObject visualPrefab;
-        
-        public Vector3 defaultEulerRotation = Vector3.zero;
     }
 
-    [Tooltip("Точка в ящике, куда перемещаются предметы при хранении. Не используется, но оставлена для удобства.")]
-    public Transform storageSpawnPoint; 
-    
-    [Header("Настройки Рецепта/Завершения")]
-    [Tooltip("Список требуемых ресурсов и их количество.")]
-    public List<ResourceRequirement> requirements = new List<ResourceRequirement>
+    [Header("Настройки Ресурсов")]
+    [Tooltip("Список типов ресурсов, которые этот контейнер принимает, и их префабы для выброса.")]
+    public List<AcceptedResource> acceptedResourceTypes = new List<AcceptedResource>
     {
-        new ResourceRequirement { resourceName = "Stone", requiredAmount = 5 },
+        new AcceptedResource { itemTypeName = "Stone", requiredAmount = 5, visualPrefab = null },
     };
-    
-    [Tooltip("Компонент TextMeshProUGUI для отображения счетчика.")]
-    public TextMeshProUGUI counterText;
-    [Tooltip("Объект, на который заменится контейнер после завершения.")]
-    public GameObject replacementObjectPrefab; 
 
-    // Хранилище: Dictionary<ТипРесурса, Количество>
-    private Dictionary<string, int> storedResources = new Dictionary<string, int>();
+    [Header("Настройки Рецепта")]
+    [Tooltip("Префаб, который появится на месте контейнера после выполнения рецепта.")]
+    public GameObject craftedPrefab;
+
+    [Header("Настройки Взаимодействия")]
+    [Tooltip("Сила, с которой предметы будут выбрасываться при опустошении контейнера.")]
+    public float ejectionForce = 10f;
+    [Tooltip("Максимальное расстояние, на котором можно инициировать выброс (для Trigger Collider).")]
+    public float interactionDistance = 3f;
+
+    // Параметры Suck-in (всасывания) удалены, так как функционал больше не используется.
+    // [Header("Настройки Поглощения (Suck-in)")]
+    // public float absorptionSpeed = 10f;
+    // public float depositDistance = 0.5f; 
+
+    private Dictionary<string, int> currentStorage = new Dictionary<string, int>();
+    private Dictionary<string, GameObject> prefabLookup = new Dictionary<string, GameObject>();
 
     private PlayerPickup playerController; 
-    private ObjectHighlighter highlighter;
+    private ObjectHighlighter highlighter; 
     
     private bool playerIsInsideTrigger = false; 
-    private bool isCompleted = false;
 
     void Start()
     {
-        // Ищем контроллер игрока
+        foreach (var res in acceptedResourceTypes)
+        {
+            if (!string.IsNullOrEmpty(res.itemTypeName) && res.visualPrefab != null)
+            {
+                currentStorage[res.itemTypeName] = 0; 
+                prefabLookup[res.itemTypeName] = res.visualPrefab;
+            }
+            else
+            {
+                Debug.LogWarning($"Container '{gameObject.name}' has an unconfigured resource type or missing visual prefab in the Inspector. Check itemTypeName and visualPrefab.");
+            }
+        }
+
         playerController = FindFirstObjectByType<PlayerPickup>();
-        
         if (playerController != null)
         {
-            // Берем компонент подсветки с игрока
             highlighter = playerController.GetComponent<ObjectHighlighter>();
         }
 
@@ -58,56 +77,25 @@ public class Container : MonoBehaviour
         {
             Debug.LogError("CRITICAL ERROR: PlayerPickup component not found in scene!");
         }
-        
-        if (highlighter == null)
-        {
-            Debug.LogWarning("ObjectHighlighter component not found on Player. Highlighting will not work.");
-        }
-        
-        if (storageSpawnPoint == null)
-        {
-            storageSpawnPoint = transform.Find("SpawnPoint"); 
-
-            if (storageSpawnPoint == null)
-            {
-                // Создаем точку по умолчанию
-                GameObject defaultSpawn = new GameObject("SpawnPoint");
-                defaultSpawn.transform.SetParent(transform);
-                defaultSpawn.transform.localPosition = Vector3.up * 0.5f;
-                storageSpawnPoint = defaultSpawn.transform;
-            }
-        }
-        
-        // Инициализируем хранилище
-        foreach (var req in requirements)
-        {
-            storedResources[req.resourceName] = 0;
-        }
-        
-        UpdateCounterDisplay();
     }
 
     void Update()
     {
-        if (isCompleted)
-        {
-            highlighter?.ResetHighlight(gameObject);
-            return;
-        }
-
-        if (playerController == null || storageSpawnPoint == null || !playerIsInsideTrigger)
+        if (playerController == null || !playerIsInsideTrigger)
         {
              return;
         }
 
-        bool playerHasItem = playerController.HeldObject != null;
-        bool containerHasAnyItem = storedResources.Values.Any(amount => amount > 0);
-        
-        // Логика подсветки
+        bool containerHasResources = currentStorage.Any(kvp => kvp.Value > 0);
+        bool playerHasEmptyHands = playerController.HeldObject == null;
+        bool recipeComplete = CheckRecipeCompletion();
+        bool playerCanDeposit = IsPlayerHoldingAcceptedItem();
+
         if (highlighter != null)
         {
-            // Подсвечиваем контейнер, если игрок в зоне и может взаимодействовать
-            if (playerIsInsideTrigger && (playerHasItem || containerHasAnyItem))
+            bool shouldHighlight = recipeComplete || playerCanDeposit || (containerHasResources && playerHasEmptyHands);
+
+            if (shouldHighlight)
             {
                 highlighter.HighlightObject(gameObject);
             }
@@ -117,181 +105,180 @@ public class Container : MonoBehaviour
             }
         }
 
-        // --- ЛОГИКА ИЗЪЯТИЯ (Кнопка E) ---
-        // Берем предмет из ящика: Нажимаем E, если руки пусты и ящик не пуст.
-        if (Input.GetKeyDown(KeyCode.E) && !playerHasItem && containerHasAnyItem && !playerController.HasRecentlyDropped)
+        if (Input.GetKeyDown(KeyCode.E) && playerIsInsideTrigger)
         {
-            WithdrawResource();
+            if (recipeComplete)
+            {
+                HandleCraftingCompletion();
+            }
+            else if (containerHasResources && playerHasEmptyHands)
+            {
+                EjectAllStoredResources();
+                Destroy(gameObject);
+            }
         }
     }
 
+    /// <summary>
+    /// Проверяет, держит ли игрок предмет, который контейнер принимает для депозита.
+    /// </summary>
+    private bool IsPlayerHoldingAcceptedItem()
+    {
+        if (playerController == null || playerController.HeldObject == null)
+        {
+            return false;
+        }
+
+        if (playerController.HeldObject.TryGetComponent(out ItemPickup heldItem))
+        {
+            return currentStorage.ContainsKey(heldItem.ItemTypeName);
+        }
+
+        return false;
+    }
+    
+    /// <summary>
+    /// Попытка поместить предмет в хранилище контейнера.
+    /// </summary>
+    private bool TryDepositItem(ItemPickup itemPickup)
+    {
+        string itemType = itemPickup.ItemTypeName;
+        
+        if (currentStorage.ContainsKey(itemType))
+        {
+            currentStorage[itemType]++;
+            Destroy(itemPickup.gameObject);
+            return true;
+        }
+        
+        return false;
+    }
+
+    /// <summary>
+    /// Проверяет, достигнуто ли требуемое количество каждого ресурса.
+    /// </summary>
+    bool CheckRecipeCompletion()
+    {
+        if (craftedPrefab == null) return false;
+
+        foreach (var required in acceptedResourceTypes)
+        {
+            if (required.requiredAmount <= 0) continue; 
+
+            if (!currentStorage.ContainsKey(required.itemTypeName) || 
+                currentStorage[required.itemTypeName] < required.requiredAmount)
+            {
+                return false;
+            }
+        }
+        return true; 
+    }
+
+    /// <summary>
+    /// Уничтожает контейнер и создает готовый предмет (крафтинг).
+    /// </summary>
+    void HandleCraftingCompletion()
+    {
+        if (highlighter != null)
+        {
+            highlighter.ResetHighlight(gameObject);
+        }
+        
+        if (craftedPrefab == null)
+        {
+            Debug.LogError($"[CONTAINER CRAFT] Cannot craft: 'Crafted Prefab' is not set on container '{gameObject.name}'.");
+            EjectAllStoredResources(); 
+            Destroy(gameObject);
+            return;
+        }
+
+        Instantiate(craftedPrefab, transform.position, transform.rotation);
+        Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// Вызывается, когда объект с коллайдером входит в триггер.
+    /// </summary>
     private void OnTriggerEnter(Collider other)
     {
-        if (isCompleted) return;
-
         if (other.GetComponent<PlayerPickup>() == playerController)
         {
             playerIsInsideTrigger = true;
         }
-        
-        ItemPickup itemComponent = other.GetComponent<ItemPickup>();
-        
-        if (other.CompareTag("Item") && itemComponent != null)
-        {
-            // Не кладем, если предмет в руке игрока (он должен сбросить его сам)
-            if (playerController != null && other.gameObject == playerController.HeldObject) return;
-
-            DepositByTrigger(other.gameObject, itemComponent.ItemTypeName);
-        }
     }
 
+    /// <summary>
+    /// Вызывается каждый кадр, пока объект находится в триггере. Используется для поглощения предметов.
+    /// </summary>
+    private void OnTriggerStay(Collider other)
+    {
+        // 1. Проверяем, что это подбираемый предмет и он нам нужен
+        if (other.TryGetComponent(out ItemPickup itemPickup) && currentStorage.ContainsKey(itemPickup.ItemTypeName))
+        {
+            // 2. Если игрок держит этот предмет в руках, мы не должны его забирать
+            if (playerController != null && playerController.HeldObject == itemPickup.gameObject) return;
+            
+            // ПРЕДМЕТ БРОШЕН И НАХОДИТСЯ ВНУТРИ ТРИГГЕРА. НЕМЕДЛЕННЫЙ ДЕПОЗИТ.
+            TryDepositItem(itemPickup); 
+        }
+    }
+    
+    /// <summary>
+    /// Вызывается, когда объект с коллайдером выходит из триггера.
+    /// </summary>
     private void OnTriggerExit(Collider other)
     {
         if (other.GetComponent<PlayerPickup>() == playerController)
         {
             playerIsInsideTrigger = false;
+            highlighter?.ResetHighlight(gameObject); 
+        }
+    }
+    
+    /// <summary>
+    /// Создает все предметы из хранилища, придает им силу и очищает хранилище. 
+    /// </summary>
+    void EjectAllStoredResources()
+    {
+        if (highlighter != null)
+        {
+            highlighter.ResetHighlight(gameObject);
+        }
+        
+        Vector3 containerPosition = transform.position;
+        Quaternion randomRotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
+        
+        foreach (var storageEntry in currentStorage.ToList()) 
+        {
+            string itemType = storageEntry.Key;
+            int amount = storageEntry.Value;
             
-            // Сбрасываем подсветку контейнера при выходе
-            highlighter?.ResetHighlight(gameObject);
-        }
-    }
-    
-    // Кладет предмет в контейнер, когда он попадает в триггер.
-    void DepositByTrigger(GameObject itemToStore, string resourceTypeName)
-    {
-        string type = resourceTypeName;
-        ResourceRequirement requirement = requirements.FirstOrDefault(req => req.resourceName == type);
+            if (amount <= 0 || !prefabLookup.ContainsKey(itemType)) continue;
 
-        if (requirement == null)
-        {
-            Debug.LogWarning($"CONTAINER: Ресурс '{type}' не требуется.");
-            return;
-        }
-        
-        if (!storedResources.ContainsKey(type))
-        {
-             storedResources[type] = 0;
-        }
-        
-        // Проверка лимита
-        if (storedResources[type] >= requirement.requiredAmount)
-        {
-             Debug.Log($"CONTAINER: Ресурс '{type}' уже полон.");
-             return;
-        }
-        
-        storedResources[type]++;
-        Destroy(itemToStore); 
-        
-        Debug.Log($"ПРЕДМЕТ ПОМЕЩЕН АВТОМАТИЧЕСКИ: '{type}'. Текущее количество: {storedResources[type]}");
-        
-        UpdateCounterDisplay();
-        CheckCompletion();
-    }
-    
-    // Извлекает один предмет из контейнера и дает его игроку.
-    void WithdrawResource()
-    {
-        // 1. Ищем ресурс, который можно изъять
-        ResourceRequirement resourceToWithdraw = requirements.FirstOrDefault(req => 
-            storedResources.ContainsKey(req.resourceName) && storedResources[req.resourceName] > 0
-        );
+            GameObject prefabToSpawn = prefabLookup[itemType];
 
-        if (resourceToWithdraw == null)
-        {
-            Debug.Log("CONTAINER: Нечего изымать.");
-            return;
-        }
-        
-        string type = resourceToWithdraw.resourceName;
-        
-        // 2. Уменьшаем счетчик
-        storedResources[type]--;
-
-        // 3. Создаем физический предмет
-        Vector3 spawnPosition = storageSpawnPoint.position;
-        GameObject spawnedItem = Instantiate(resourceToWithdraw.visualPrefab, spawnPosition, Quaternion.identity);
-
-        // 4. Пытаемся дать предмет игроку
-        if (playerController.TryGiveItem(spawnedItem))
-        {
-            Debug.Log($"ПРЕДМЕТ ИЗЪЯТ: '{type}'. Передан игроку.");
-        }
-        else
-        {
-             // Если руки игрока неожиданно полны
-             Debug.LogError("CONTAINER: Не удалось передать предмет игроку (Руки неожиданно полны).");
-             
-             // Откат
-             storedResources[type]++; 
-             Destroy(spawnedItem);
-        }
-        
-        // 5. Обновляем счетчик
-        UpdateCounterDisplay();
-    }
-    
-    // Обновляет отображение TextMeshProUGUI.
-    void UpdateCounterDisplay()
-    {
-        if (counterText != null)
-        {
-            string display = "";
-            foreach (var req in requirements)
+            for (int i = 0; i < amount; i++)
             {
-                int currentAmount = storedResources.ContainsKey(req.resourceName) ? storedResources[req.resourceName] : 0;
-                display += $"{req.resourceName}: {currentAmount}/{req.requiredAmount}\n";
-            }
-            counterText.text = display.TrimEnd('\n'); 
-        }
-        else
-        {
-            Debug.LogWarning("Счетчик TextMeshProUGUI не назначен! Обновление дисплея не удалось.");
-        }
-    }
+                GameObject spawnedItem = Instantiate(prefabToSpawn, containerPosition + Vector3.up * 0.5f, randomRotation);
+                
+                Rigidbody rb = spawnedItem.GetComponent<Rigidbody>();
+                ItemPickup itemPickup = spawnedItem.GetComponent<ItemPickup>();
 
-    // Проверяет, выполнены ли все требования рецепта.
-    void CheckCompletion()
-    {
-        bool allRequirementsMet = true;
-        foreach (var req in requirements)
-        {
-            int current = storedResources.ContainsKey(req.resourceName) ? storedResources[req.resourceName] : 0;
+                if (rb != null)
+                {
+                    Vector3 randomDirection = Random.insideUnitCircle.normalized;
+                    Vector3 forceDirection = (Vector3.up * 0.5f + new Vector3(randomDirection.x, 0, randomDirection.y) * 0.2f).normalized;
+                    rb.AddForce(forceDirection * ejectionForce * Random.Range(0.8f, 1.2f), ForceMode.Impulse);
+                }
+                
+                if (itemPickup != null)
+                {
+                    itemPickup.CanBePickedUp = false;
+                    itemPickup.Invoke("EnablePickup", 0.5f); 
+                }
+            }
             
-            if (current < req.requiredAmount)
-            {
-                allRequirementsMet = false;
-                break;
-            }
+            currentStorage[itemType] = 0;
         }
-
-        if (allRequirementsMet)
-        {
-            CompleteContainer();
-        }
-    }
-    
-    // Завершает контейнер: удаляет подсветку и заменяет объект.
-    void CompleteContainer()
-    {
-        isCompleted = true;
-        Debug.Log("КОНТЕЙНЕР ЗАПОЛНЕН! Выполнение завершения...");
-        
-        highlighter?.ResetHighlight(gameObject);
-
-        // Обновляем счетчик в последний раз
-        if (counterText != null)
-        {
-             counterText.text = "ЗАВЕРШЕНО!";
-        }
-        
-        // Заменяем текущий объект
-        if (replacementObjectPrefab != null)
-        {
-            Instantiate(replacementObjectPrefab, transform.position, transform.rotation);
-        }
-        
-        // Уничтожаем текущий объект контейнера
-        Destroy(gameObject);
     }
 }

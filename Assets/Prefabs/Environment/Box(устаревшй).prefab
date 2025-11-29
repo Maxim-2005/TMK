@@ -279,15 +279,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: ba3cc843f9b108f4a8dbcce4713d8c19, type: 3}
       propertyPath: m_LocalScale.x
-      value: 50
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: ba3cc843f9b108f4a8dbcce4713d8c19, type: 3}
       propertyPath: m_LocalScale.y
-      value: 50
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: ba3cc843f9b108f4a8dbcce4713d8c19, type: 3}
       propertyPath: m_LocalScale.z
-      value: 50
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: ba3cc843f9b108f4a8dbcce4713d8c19, type: 3}
       propertyPath: m_LocalPosition.x
@@ -337,6 +337,10 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: 61c3ae4360400614c8af72c7363bda9b, type: 2}
+    - target: {fileID: -5754084199372789682, guid: ba3cc843f9b108f4a8dbcce4713d8c19, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: -5495902117074765545, guid: b978c90564505614faa36614691f28e6, type: 3}
     - target: {fileID: 919132149155446097, guid: ba3cc843f9b108f4a8dbcce4713d8c19, type: 3}
       propertyPath: m_Name
       value: Box
@@ -383,14 +387,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e413989aa84a1c1439a534929bf42bba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Container
-  storageSpawnPoint: {fileID: 6079026027829960056}
-  requirements:
-  - resourceName: "\u041A\u0430\u043C\u0435\u043D\u044C"
-    requiredAmount: 5
-  counterText: {fileID: 7436975366068614880}
-  replacementObjectPrefab: {fileID: 919132149155446097, guid: 2d18347ec7009654094b76c1838a62b1, type: 3}
-  highlightColor: {r: 0, g: 1, b: 1, a: 1}
-  highlightIntensity: 1.5
+  resourcesToEject:
+  - resourceName: Stone
+    initialAmount: 3
+    visualPrefab: {fileID: 0}
+  ejectionForce: 300
 --- !u!65 &3740491653175329112
 BoxCollider:
   m_ObjectHideFlags: 0

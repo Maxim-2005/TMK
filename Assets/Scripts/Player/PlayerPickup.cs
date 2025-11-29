@@ -1,24 +1,32 @@
 using UnityEngine;
 using System.Linq;
 using System.Collections.Generic;
+using Game.Items;
+
+// Интерфейс для гибкого приема предметов (от контейнеров или других источников).
+public interface IItemTaker
+{
+    bool TryGiveItem(GameObject item);
+}
 
 // Скрипт, управляющий логикой подбора, удержания, бросания и роняния предметов игроком.
-// Также содержит публичный метод для взаимодействия с Container.cs.
-public class PlayerPickup : MonoBehaviour
+public class PlayerPickup : MonoBehaviour, IItemTaker 
 {
     // === 1. НАСТРОЙКИ ===
     [Tooltip("Тег, который должен быть у подбираемых предметов.")]
     public string targetTag = "Item";
     [Tooltip("Точка в пространстве, где будет удерживаться предмет (должна быть дочерним объектом игрока).")]
     public Transform holdPosition;
+    
+    [SerializeField]
     [Tooltip("Сила, с которой предмет будет брошен при нажатии G.")]
-    public float throwForce = 500f;
+    private float throwForce = 10f; 
+    
     [Tooltip("Максимальное расстояние, на котором игрок может подобрать предмет.")]
     public float pickupRange = 2f;
     
     // === 2. СОСТОЯНИЕ И ССЫЛКИ ===
     
-    // Ссылка на компонент ObjectHighlighter для управления подсветкой доступных предметов.
     private ObjectHighlighter highlighter;
 
     // Публичное свойство, возвращающее текущий удерживаемый объект.
@@ -26,8 +34,6 @@ public class PlayerPickup : MonoBehaviour
     // Последний предмет, который был подсвечен (кандидат на подбор).
     private GameObject lastHighlightedItem;
     
-    // Счетчик, используемый для кратковременной блокировки взаимодействия с контейнером 
-    // сразу после того, как игрок бросил или уронил предмет.
     private int dropFrameCounter = 0; 
     // Публичное свойство для проверки из Container.cs (true, если только что уронил).
     public bool HasRecentlyDropped => dropFrameCounter > 0; 
@@ -38,7 +44,7 @@ public class PlayerPickup : MonoBehaviour
         highlighter = GetComponent<ObjectHighlighter>();
         if (highlighter == null)
         {
-            Debug.LogError("PlayerPickup требует компонент ObjectHighlighter на том же GameObject!");
+            Debug.LogError("PlayerPickup requires ObjectHighlighter component on the same GameObject!");
         }
     }
 
@@ -46,36 +52,36 @@ public class PlayerPickup : MonoBehaviour
 
     void Update()
     {
-        // Уменьшаем счетчик блокировки роняния на 1 кадр, пока он не достигнет 0.
+        // Счетчик кадров для предотвращения двойного действия 'E' (Drop Item + Withdraw from Container)
         if (dropFrameCounter > 0)
         {
             dropFrameCounter--;
         }
 
-        // Поиск и подсветка ближайшего подбираемого предмета.
         HighlightNearestItem();
-        // Обработка пользовательского ввода (E и G).
         HandleInput();
 
-        // Фиксация позиции предмета в руке: удерживаемый объект перемещается в holdPosition каждый кадр.
+        // Удерживаемый предмет всегда следует за точкой удержания (Hold Position)
         if (HeldObject != null)
             HeldObject.transform.position = holdPosition.position;
     }
     
-    // Вынесение обработки ввода в отдельный метод для чистоты Update
     private void HandleInput()
     {
         // Логика нажатия клавиши 'E' (Подобрать / Сбросить)
         if (Input.GetKeyDown(KeyCode.E))
         {
             if (HeldObject == null)
-                TryPickupNearestItem(); // Пытаемся подобрать, если руки пусты
+            {
+                // Если ничего не держим, пытаемся подобрать ближайший предмет
+                TryPickupNearestItem(); 
+            }
             else
             {
-                // Роняем предмет, если руки заняты
+                // Если держим, сбрасываем предмет.
                 DropItem(); 
-                // Устанавливаем блокировку на 1 кадр, чтобы предотвратить немедленное взаимодействие с контейнерами.
-                dropFrameCounter = 1; 
+                // Активируем счетчик, чтобы Container.cs мог игнорировать этот кадр
+                dropFrameCounter = 2; // Увеличено до 2 кадров для надежности
             }
         }
 
@@ -88,7 +94,7 @@ public class PlayerPickup : MonoBehaviour
 
     void HighlightNearestItem()
     {
-        // Если что-то держим, сбрасываем любую подсветку и выходим.
+        // Не подсвечиваем предметы, если игрок уже что-то держит
         if (HeldObject != null)
         {
             if (lastHighlightedItem != null)
@@ -96,17 +102,15 @@ public class PlayerPickup : MonoBehaviour
             return;
         }
 
-        // Поиск ближайшего и доступного предмета в радиусе pickupRange
         GameObject nearestItem = FindNearestAvailableItem();
 
-        // Обновляем подсветку, только если кандидат на подбор изменился
         if (lastHighlightedItem != nearestItem)
         {
-            // Сброс подсветки старого предмета
+            // Сбрасываем старую подсветку
             if (lastHighlightedItem != null)
                 highlighter.ResetHighlight(lastHighlightedItem);
 
-            // Подсветка нового предмета
+            // Активируем новую подсветку
             if (nearestItem != null)
                 highlighter.HighlightObject(nearestItem); 
             
@@ -121,9 +125,7 @@ public class PlayerPickup : MonoBehaviour
             .Where(item =>
                 // 1. В пределах радиуса подбора
                 Vector3.Distance(transform.position, item.transform.position) <= pickupRange &&
-                // 2. Не находится внутри контейнера (т.е. не привязан как дочерний элемент)
-                !IsItemStored(item) &&
-                // 3. Имеет необходимый компонент ItemPickup
+                // 2. Имеет необходимый компонент ItemPickup (это гарантирует, что это подбираемый предмет)
                 item.GetComponent<ItemPickup>() != null) 
             .ToArray();
 
@@ -141,16 +143,9 @@ public class PlayerPickup : MonoBehaviour
 
     void TryPickupNearestItem()
     {
+        // Пытаемся подобрать предмет, который находится в поле зрения и подсвечен
         if (lastHighlightedItem == null) return;
         
-        // Повторная проверка на случай, если предмет успел быть помещен в контейнер.
-        if (IsItemStored(lastHighlightedItem)) 
-        {
-             highlighter.ResetHighlight(lastHighlightedItem);
-             lastHighlightedItem = null;
-             return;
-        }
-
         ItemPickup item = lastHighlightedItem.GetComponent<ItemPickup>();
         if (item == null) return; 
 
@@ -198,24 +193,27 @@ public class PlayerPickup : MonoBehaviour
     }
 
     /// <summary>
-    /// Используется только для ЗАБИРАНИЯ предмета из контейнера (вызывается из Container.cs).
+    /// Реализация IItemTaker. Используется для ЗАБИРАНИЯ предмета из контейнера (вызывается из Container.cs).
     /// </summary>
-    /// <param name="item">Предмет, который нужно дать игроку.</param>
-    /// <returns>True, если предмет был успешно принят (руки были пусты).</returns>
     public bool TryGiveItem(GameObject item)
     {
-        // Не можем принять предмет, если что-то уже держим.
+        // 1. Не можем принять предмет, если что-то уже держим.
         if (HeldObject != null)
         {
             return false;
         }
 
         ItemPickup itemPickup = item.GetComponent<ItemPickup>();
-        if (itemPickup == null) return false;
+        if (itemPickup == null) 
+        {
+            Debug.LogError($"Item '{item.name}' does not have ItemPickup component, transfer is impossible.");
+            return false;
+        }
 
-        // Делегируем привязку самому предмету
+        // 2. Делегируем привязку самому предмету
         itemPickup.PickupItem(holdPosition);
 
+        // 3. Обновляем состояние игрока
         HeldObject = item;
         
         return true;
@@ -223,36 +221,7 @@ public class PlayerPickup : MonoBehaviour
     
     // === 6. ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
 
-    /// <summary>
-    /// Проверяет, находится ли предмет в данный момент внутри контейнера (является ли его дочерним элементом).
-    /// Используется для исключения уже "хранящихся" предметов из подбора.
-    /// </summary>
-    private bool IsItemStored(GameObject item)
-    {
-        if (item.transform.parent != null)
-        {
-            // Проверяем, что родительский объект имеет компонент Container (или является его дочерним)
-            // И исключаем нашу собственную holdPosition (чтобы не блокировать HeldObject)
-            if (item.transform.parent.GetComponentInParent<Container>() != null && item.transform.parent != holdPosition)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // Этот метод больше не используется контейнером для кладения! 
-    // Оставлен для совместимости, но логика перенесена в DropItem.
-    public GameObject TakeHeldItem()
-    {
-        if (HeldObject == null) return null;
-        
-        // Просто роняем предмет (поскольку Container.cs теперь сам уничтожает предмет при внесении)
-        DropItem();
-        return null; 
-    }
-
-    // Отображает радиус подбора в редакторе Unity (только при выбранном объекте).
+    // Отображает радиус подбора в редакторе Unity.
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.green;
