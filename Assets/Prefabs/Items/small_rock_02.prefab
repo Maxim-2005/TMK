@@ -48,6 +48,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: ebbf7a9257aa777469ae347eef43e1bd, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 8eedf4cba631fb9499e6b33d4bb38b38, type: 2}
     - target: {fileID: 919132149155446097, guid: ebbf7a9257aa777469ae347eef43e1bd, type: 3}
       propertyPath: m_Name
       value: small_rock_02
@@ -69,6 +73,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: ebbf7a9257aa777469ae347eef43e1bd, type: 3}
       insertIndex: -1
       addedObject: {fileID: 135962119520365149}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: ebbf7a9257aa777469ae347eef43e1bd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 574920819591767613}
   m_SourcePrefab: {fileID: 100100000, guid: ebbf7a9257aa777469ae347eef43e1bd, type: 3}
 --- !u!1 &7266458562317541975 stripped
 GameObject:
@@ -138,3 +145,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Game.Items.ItemPickup
   ItemTypeName: Stone
   CanBePickedUp: 1
+--- !u!114 &574920819591767613
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7266458562317541975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 09cd02fd0c5dc3848961a949c231e878, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ResourceProcessor
+  health: 3
+  requiredToolType: 2
+  replacementPrefab: {fileID: 5229225019687487560, guid: f849eefabe27e834fbc5b1c72cac0f6d, type: 3}

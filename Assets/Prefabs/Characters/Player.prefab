@@ -505,8 +505,15 @@ MonoBehaviour:
   walkSpeed: 3
   sprintSpeed: 7
   rotationSpeed: 10
+  dashKey: 32
+  dashReloadTime: 2
+  dashPower: 15
+  dashDuration: 0.2
   gravity: -30
   groundVelocity: -2
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 8
 --- !u!114 &5895319629699470260
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -519,6 +526,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8ef96bf3f5febf145b72c3dc0d8701ca, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerToolController
+  maxHitDistance: 3
+  hitRadius: 1
+  verticalOffset: 0.05
 --- !u!114 &4585400398832478852
 MonoBehaviour:
   m_ObjectHideFlags: 0
