@@ -6,7 +6,7 @@ using UnityEngine;
 public class IsometricCharacterController : MonoBehaviour
 {
     [Header("Movement")]
-    // Клавиша, которую нужно удерживать для ускорения (спринта).
+    // Клавиша для ускорения (спринта).
     public KeyCode sprintKey = KeyCode.LeftShift;
     // Базовая скорость перемещения персонажа.
     public float walkSpeed = 3f;
@@ -14,7 +14,17 @@ public class IsometricCharacterController : MonoBehaviour
     public float sprintSpeed = 7f;
     // Скорость, с которой персонаж плавно поворачивается в направлении движения.
     public float rotationSpeed = 10f;
-    
+
+    [Header("Dash")]
+    // Клавиша для рывка
+    public KeyCode dashKey = KeyCode.Space;
+    //Время перезарядки рывка
+    public float dashReloadTime = 2f;
+    //Сила рывка
+    public float dashPower = 15f;
+    //Длительность рывка
+    public float dashDuration = 0.2f;
+
     [Header("Gravity")]
     // Сила гравитации, которая будет применяться к персонажу. Отрицательное значение.
     public float gravity = -30f; 
@@ -31,6 +41,13 @@ public class IsometricCharacterController : MonoBehaviour
     private float _currentSpeed;
     // Вектор вертикальной скорости (включает гравитацию и потенциальный прыжок).
     private Vector3 _velocity; 
+
+    // --- ДОБАВЛЕННЫЕ ПЕРЕМЕННЫЕ ДЛЯ РЫВКА ---
+    private bool _isDashing = false;
+    private bool _canDash = true;
+    private float _dashTimer = 0f;
+    private Vector3 _dashDirection;
+    private float _dashCooldownTimer = 0f;
 
     void Start()
     {
@@ -59,6 +76,19 @@ public class IsometricCharacterController : MonoBehaviour
         
         // --- 1. ЛОГИКА ГРАВИТАЦИИ ---
         ApplyGravity();
+
+        // --- ОБРАБОТКА ПЕРЕЗАРЯДКИ РЫВКА ---
+        HandleDashCooldown();
+
+        // --- ЛОГИКА РЫВКА ---
+        HandleDash();
+
+        // Если в процессе рывка, не обрабатываем обычное движение
+        if (_isDashing)
+        {
+            characterController.Move(_dashDirection * dashPower * Time.deltaTime);
+            return;
+        }
 
         // Логика спринта: если клавиша зажата, используем sprintSpeed, иначе walkSpeed.
         _currentSpeed = Input.GetKey(sprintKey) ? sprintSpeed : walkSpeed;
@@ -120,9 +150,56 @@ public class IsometricCharacterController : MonoBehaviour
         }
     }
     
-    /// <summary>
-    /// Отдельный метод для обработки гравитации и сброса вертикальной скорости при касании земли.
-    /// </summary>
+    // --- ДОБАВЛЕННЫЕ МЕТОДЫ ДЛЯ РЫВКА ---
+
+    private void HandleDashCooldown()
+    {
+        if (!_canDash)
+        {
+            _dashCooldownTimer -= Time.deltaTime;
+            if (_dashCooldownTimer <= 0f)
+            {
+                _canDash = true;
+            }
+        }
+    }
+
+    private void HandleDash()
+    {
+        // Если рывок активен, обрабатываем таймер
+        if (_isDashing)
+        {
+            _dashTimer -= Time.deltaTime;
+            if (_dashTimer <= 0f)
+            {
+                _isDashing = false;
+            }
+            return;
+        }
+
+        // Проверяем возможность и нажатие для рывка
+        if (_canDash && Input.GetKeyDown(dashKey))
+        {
+            Dash();
+        }
+    }
+
+    private void Dash()
+    {
+        // Получаем направление взгляда персонажа
+        _dashDirection = transform.forward;
+        
+        // Запускаем рывок
+        _isDashing = true;
+        _canDash = false;
+        _dashTimer = dashDuration;
+        _dashCooldownTimer = dashReloadTime;
+
+        // Можно добавить визуальные/звуковые эффекты здесь
+        Debug.Log("Dash activated!");
+    }
+
+    // Отдельный метод для обработки гравитации и сброса вертикальной скорости при касании земли.
     private void ApplyGravity()
     {
         // Проверяем, находится ли контроллер на земле
